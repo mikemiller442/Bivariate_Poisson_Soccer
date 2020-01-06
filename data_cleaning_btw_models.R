@@ -4,6 +4,8 @@ library(caret)
 library(rstan)
 library(tie)
 
+# simulates the probabilities of each action (home win, away win, draw)
+# based on the marginal poisson distributions for each side
 compare_goals <- function(lambda_home,lambda_away) {
   home_goals <- rpois(10000, lambda_home)
   away_goals <- rpois(10000, lambda_away)
@@ -15,6 +17,7 @@ compare_goals <- function(lambda_home,lambda_away) {
   return(outcome_list)
 }
 
+# Log-likelihood function for the Davidson model
 fun_lik <- function(param, thd, thw, nhw, nhd, wa, da){
   first_term <- thd*log(param[21])
   second_term <- (thw + .5*thd)*log(param[22])
@@ -44,6 +47,7 @@ fun_lik <- function(param, thd, thw, nhw, nhd, wa, da){
 
 par_initial_values = c(.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5)
 
+# Loops through ten seasons of Premier League Data
 csv_list <- c("epl_0910.csv", "epl_1011.csv", "epl_1112.csv", "epl_1213.csv", "epl_1314.csv", "epl_1415.csv", "epl_1516.csv", "epl_1617.csv", "epl_1718.csv", "epl_1819.csv")
 
 avg_draws_predicted_BT <- array(1:10)
@@ -169,6 +173,7 @@ for (i in csv_list) {
   poisson_log_loss <- 0
   poisson_no_cov_log_loss <- 0
   
+  # Runs 5-fold validation of the models on each of the seasons
   for (j in 1:5) {
     train_splits <- splits[-j]
     train_data <- do.call("rbind", train_splits)
@@ -200,6 +205,7 @@ for (i in csv_list) {
       draws_matrix[train_data$home_team_code[z], train_data$away_team_code[z]] = ifelse(train_data$draw[z] == 1, 1, 0)
     }
     
+    # estimates team strength, home field advantage, and draw parameters for the Davidson model
     davidson_results <- optim(par = par_initial_values, fn=fun_lik,
                               thd = total_home_draws, thw = total_home_wins,
                               nhw = home_wins_array$num_home_wins, nhd = home_draws_array$num_home_draws,
@@ -243,6 +249,7 @@ for (i in csv_list) {
              correct_home_win_prediction_davidson = ifelse(home_win == home_win_predicted_davidson & home_win == 1, 1, 0),
              correct_away_win_prediction_davidson = ifelse(away_win == away_win_predicted_davidson & away_win == 1, 1, 0))
     
+    # estimates team strength and home field advantage parameters for the Bradley-Terry model
     BT_model <- BTm(result, data.frame(team = HomeTeam, home_field = 1), data.frame(team = AwayTeam, home_field = 0), ~ team + home_field, id = "team", refcat = "Everton", data = train_data)
     abilities <- exp(BTabilities(BT_model))
     abilities <- data.frame(abilities)
@@ -272,6 +279,7 @@ for (i in csv_list) {
              correct_home_win_prediction_BT = ifelse(home_win == home_win_predicted_BT & home_win == 1, 1, 0),
              correct_away_win_prediction_BT = ifelse(away_win == away_win_predicted_BT & away_win == 1, 1, 0))
     
+    # Uses bivariate poisson model with covariance term with team random effects and no fixed intercept
     stan_data <- list(num_clubs = 20,
                       num_games = numGames,
                       home_team_code = train_data$home_team_code,
@@ -336,9 +344,8 @@ for (i in csv_list) {
              correct_home_win_prediction_poisson = ifelse(home_win == home_win_predicted_poisson & home_win == 1, 1, 0),
              correct_away_win_prediction_poisson = ifelse(away_win == away_win_predicted_poisson & away_win == 1, 1, 0))
     
+    # Uses bivariate poisson model with no covariance term
     stanfit <- stan(file = "bivariate_poisson_no_cov.stan", data = stan_data, chains = 3, iter = 7000, warmup = 2000, control = list(adapt_delta = 0.95))
-    
-    # no cov poisson
     
     posterior <- extract(stanfit)
     mu <- mean(posterior$mu)
@@ -393,8 +400,6 @@ for (i in csv_list) {
              correct_home_win_prediction_poisson_no_cov = ifelse(home_win == home_win_predicted_poisson_no_cov & home_win == 1, 1, 0),
              correct_away_win_prediction_poisson_no_cov = ifelse(away_win == away_win_predicted_poisson_no_cov & away_win == 1, 1, 0))
     
-    # end cov poisson
-    
     num_draws_predicted_BT <- num_draws_predicted_BT + sum(test_data$correct_draw_prediction_BT)
     num_home_wins_predicted_BT <- num_home_wins_predicted_BT + sum(test_data$correct_home_win_prediction_BT)
     num_away_wins_predicted_BT <- num_away_wins_predicted_BT + sum(test_data$correct_away_win_prediction_BT)
@@ -418,6 +423,8 @@ for (i in csv_list) {
     Sys.sleep(30)
   }
   
+  # Now fits the models on the whole season instead of just a training section. This is to simply observe the model's
+  # parameters over time and not used to test their performance.
   num_games_in_season = nrow(current_data)
   
   total_home_wins <- sum(current_data$home_win)
