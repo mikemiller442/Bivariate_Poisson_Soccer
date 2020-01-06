@@ -6,3 +6,5 @@ Assessing Bivariate Poisson Models and Pairwise Comparison Models in Predicting 
 The programming language Stan was used with the R package RStan to fit these models. Attacking strengths, defensive strengths, and team-specific effects on the covariance were modelled as random effects normally distributed with mean zero and unknown variance. Prior distributions for the variance parameters were diffuse inverse-gamma distributions.
 
 The pairwise comparison models include the Bradley-Terry model, which cannot model draws, and the Davidson model, which does give probability for draws. These models were fit using Maximum Likelhood Estimation. There is a great package for BT that will estimate the models, but to estimate the Davidson model with a home field advantage I fit the model myself using the log-likelihood equation and the optim library in R.
+
+This project was done for my Sports Analytics class at Skidmore.
