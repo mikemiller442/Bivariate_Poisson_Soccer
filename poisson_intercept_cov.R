@@ -4,6 +4,10 @@ library(caret)
 library(rstan)
 library(tie)
 
+# This script has the same purpose as the other main R script except it just focuses on testing the bivariate poisson
+# model with a covariance term that includes team-specific random effects as well as a fixed intercept. It was done
+# separately because fitting this model took the longest.
+
 compare_goals <- function(lambda_home,lambda_away) {
   home_goals <- rpois(10000, lambda_home)
   away_goals <- rpois(10000, lambda_away)
