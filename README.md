@@ -1,5 +1,5 @@
 # Bivariate_Poisson_Soccer
-Assessing Bivariate Poisson Models and Pairwise Comparison Models in Predicting the Outcomes of Soccer Matches. The final paper is posted at http://rpubs.com/mikemiller442/564326.
+Assessing Bivariate Poisson Models and Pairwise Comparison Models in Predicting the Outcomes of Soccer Matches. The final paper is published at RPubs at http://rpubs.com/mikemiller442/564326.
 
 5-fold validation on ten seasons of English Premier League data is run in the script data_cleaning_btw_models.R, analyzing which models perform the best with respect to binary loss and log loss. The script uses various different specifications for the bivariate poisson models, primarily altering the covariance term to see which model performs better. The first model is found in bivariate_poisson_no_cov.stan, which does not fit a covariance term in the model. The second model is in bivariate_poisson_model.stan, which has a covariance term with team-specific parameters but with no fixed intercept. The third model in bivariate_poisson_int_cov.stan allows for team-specific parameters and an intercept in the covariance term.
 
