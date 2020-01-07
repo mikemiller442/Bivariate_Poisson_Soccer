@@ -1,0 +1,400 @@
+---
+title: "Assessing Bivariate Poisson Models and Pairwise Comparison Models in Predicting the Outcomes of Soccer Matches"
+author: "Michael Miller"
+date: "12/17/2019"
+output: html_document
+fontsize: 14pt
+---
+
+\fontsize{12}{22}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(reshape2)
+library(ggrepel)
+```
+
+## Introduction
+
+In a sense, understanding the factors that influence the outcomes of your team's matches is the most important role of the sports statistician. Whether it's player development, injury prevention, offensive ability, or any number of factors, at the end of the day we want to help our team win games. In this paper I want to explore two classes of models for predicting outcomes: pairwise comparison models and bivariate poisson models.
+
+Pairwise comparison models like the Bradley-Terry Model can estimate the "strengths" of teams by analyzing a data set that contains matches between the teams and their outcomes. The model is fit in such a way that the estimated strengths can be easily manipulated to give the probability that a team A can beat a team B, and it can also account for the probability that A beats team at home, at a neutral site, or away from home if we include a home field advantage parameter. However, the downside to the Bradley-Terry model is that it doesn't allow for draws, or in general a "no preference" option. There are several improvements to this model that are possible, but the one I use in this paper is the Davidson Model proposed by Roger R. Davidson in his breakthrough paper "On Extending the Bradley-Terry Model to Accommodate Ties in Paired Comparison Experiments" in 1970. This model introduces a third parameter, $\nu$, where higher values for $\nu$ makes draws more likely. There has been extensive research into pairwise comparison models; Rao and Kupper (1968) offered a different model that serves the same purpose, and further advances have been made to the Davidson model to accomodate for the nonlinear relationships and model the dependence of a draw on the relative strengths of the team (Turner et al., 2013). However, I will use the Bradley Terry Model and the Davidson model modified to include a home field advantage. To see Rao and Kupper's model, refer to equation 2.3 in Davidson's paper, where he presents their model as context before introducing his potential improvement.
+
+The second class of models I will explore are the bivariate poisson models. The poisson distribution is a discrete probability distribution that gives the probability for different values of a variable whose range is the non-negative integers. This distribution can be derived from the binomial distribution by allowing the number of trials to tend to infinity, representing a continuum in time or space rather than a discrete number of trials, whereas the probability of the events occuring in any given infinitesimal moment of time or area in space tends to zero. In a soccer match, it is theoretically possible for a goal to occur at any moment in the match, but the probability of it occuring at any one moment is almost zero. Consequently, soccer goals are a perfect example of a poisson distributed variable, and summary statistics later in the paper will show that it satisfies the assumption that the mean of the distribution is equal to its variance. Intuitively this states that the variance of goals would be much higher if the average goals scored by a team was 10 goals rather than 1.2 goals.
+
+However, we can take advantage of the structure of soccer matches by recognizing that matches involve goals from both teams and that these goal counts covary and are not indepdendent. For example, given two teams of roughly equal ability, it is possible that a large number of goals scored by one team is positively associated with the number of goals scored by the other team because both teams are playing high-intensity soccer with lots of counter-attacking and high pressing. In this paper, I will explore bivariate poisson models with no covariance term, with team-specific random effects on the covariance without an intercept, and with team-specific random effects and a fixed intercept term for the covariance. All of these models will be demonstrated in the methods section.
+
+Bivariate poisson models have also been extensively studied in their applications to sports like soccer and water polo. Karlis and Ntzoufras (2005) show that the classical bivariate poisson models underestimate the prevalence of draws and introduce "Diagonal-Inflated" poisson models that weight the occurence of the bivariate poisson model assigning the same goal count to both sides. This is a fascinating topic, but the downside of this approach is that the resulting multivariate distribution does not have marginal distributions that are poisson.
+
+### Please Note
+For convenience, I will exclusively refer to the poisson model with no covariance term as model 1, the poisson model with a covariance term but without an intercept as model 2, and the poisson model with a covariance term with intercept as model 3. It would be quite a mouthful if I didn't! To remember the ordering, the models increase in complexity as you go from model 1 to model 3.
+
+## Methods
+
+The first model we will use primarily as a benchmark is the Bradley Terry Model. Here, $\rho$ symbolizes the home field advantage for a team, and the alphas represent the abilities of the team
+
+### The Bradley Terry Model
+
+P(i beats j at home) $= \frac{\rho\alpha_i}{\rho\alpha_i + \alpha_j}$  
+P(j beats i away) $= \frac{\alpha_j}{\rho\alpha_i + \alpha_j}$  
+
+### The Davidson Model
+
+The Davidson Model improves the Bradley Terry Model by allowing the possibility of draws, which is essential for soccer. Here, high values for $\nu$ represent a higher probability of a draw. You will notice that the values for $\rho$ and $\nu$ are constant for all teams. Other studies have explored the implementation of team-specific home field advantages and draw-likelihood factors, but this complexity was not the primary interest of this paper nor would sample size permit accurate estimation of these parameters.
+
+P(i beats j at home) $= \frac{\rho\alpha_i}{\rho\alpha_i + \alpha_j + \nu\sqrt{\rho\alpha_i\alpha_j}}$  
+P(j beats i away) $= \frac{\alpha_j}{\rho\alpha_i + \alpha_j + \nu\sqrt{\rho\alpha_i\alpha_j}}$  
+P(i ties with j at home) $= \frac{\nu\sqrt{\rho\alpha_i\alpha_j}}{\rho\alpha_i + \alpha_j + \nu\sqrt{\rho\alpha_i\alpha_j}}$  
+
+The model and its log-likelihood function for the Davidson model are given below (Jamil, 22-23).
+
+$l(\alpha_1,...,\alpha_{20}, \rho, \nu) = Tlog\nu + (W + \frac{1}{2}T)log\rho + \sum_{i=1}^{20}(w_i + \frac{1}{2}t_i)loga_i + \sum_{i=1}^{20}\sum_{j=1}^{20}(w_{ji} + \frac{1}{2}t_{ij})loga_j - \sum_{i=1}^{20}\sum_{j=1}^{20}log(\rho\alpha_i + \alpha_j + \nu\sqrt(\rho\alpha_i\alpha_j))$
+
+In the above equation, T is the total number of draws, W is the total number of wins, $w_i$ and $t_i$ represent the number wins and draws that the ith team had, $w_{ji}$ is 1 if team j at home beat team i and zero otherwise, and $t_{ij}$ is one if team i at home drew team j and zero otherwise.
+
+### Bivariate Poisson No Covariance Model (Model 1)
+
+Poisson models are examples of log-linear models because the parameters are estimated by modeling the logarithm of the expected goals as a linear combination of parameters. $\mu$ represents the intercept term for the expected goals, which we assume to be constant and the same for both sides. Each expected goal count is a function of the attacking ability of the team that is scoring and the defending ability of their opponent. In this case, the goal counts are entirely independent, so the marginal distributions are equal to the exponentiated forms of the expressions on the right hand side.
+
+First, it is important to note that we are treating the team-specific parameters as random effects, meaning that each set of random effects is normally distributed with mean zero and unknown variance. In other words, let $att_i \sim N(0, \sigma_a)$, $def_i \sim N(0, \sigma_d)$, and $rho_i \sim N(0, \sigma_r)$, where $\rho$ represents the effects that teams have on the covariance term, which will be explained in the next model. Because each random effect has a mean of zero, the expected value of a linear combination of random effects is zero.
+
+$(X_i,Y_i) \sim BP(\lambda_{1i},\lambda_{2i})$  
+$log(\lambda_{1i}) = \mu + home + att_{H_i} + def_{A_i}$  
+$log(\lambda_{2i}) = \mu + att_{A_i} + def_{H_i}$  
+The marginal distributions of X and Y are given by  
+$E(X) = \lambda_1$ and $E(Y) = \lambda_2$.  
+
+### Bivariate Poisson Covariance with no Intercept Model (Model 2)
+
+In this model, we keep $\lambda_{1i}$ and $\lambda_{2i}$ but add a $\lambda_{3i}$ term that represents the covariance between the two goal counts. There is no intercept term in the equation for $\lambda_{3i}$. This is a critical observation that explains later results of this project because it means that the expected value for the $\lambda_{3i}$ term is $e^0 = 1$. This could possibly lead to inaccurate results if the structure of the model truly has a fixed covariance estimate that is not equal to one. To improve upon this, we add an intercept in the next model. Further analysis of the parameters for home field advantage and the expected values for the goal counts and the covariance will be explored later in the paper.
+
+$(X_i,Y_i) \sim BP(\lambda_{1i},\lambda_{2i},\lambda_{3i})$  
+$log(\lambda_{3i}) = \rho_{H_i} + \rho_{A_i}$  
+The marginal distributions of X and Y are given by  
+$E(X) = \lambda_1 + \lambda_3$ and $E(Y) = \lambda_2 + \lambda_3$.
+
+The above model is used by Jake Thompson in his project to predict Champions League matches. He also uses a different model that fits an intercept term for the covariance without any team-specific models. However, he did not fit a model with an intercept term in the covariance in addition to team-specific random effects on the covariance, which is what I attempted in the next model.
+
+### Bivariate Poisson Covariance with Intercept Model (Model 3)
+
+Now that there is an intecept in the last equation, the expected value for $\lambda_{3i}$ is $e^\tau$. It is possible that this doesn't change anything and that the information is simply incorporated into the intercept term in the goal counts, but we will look at the results.
+
+$(X_i,Y_i) \sim BP(\lambda_{1i},\lambda_{2i},\lambda_{3i})$  
+$log(\lambda_{3i}) = \tau + \rho_{H_i} + \rho_{A_i}$  
+The marginal distributions of X and Y are given by  
+$E(X) = \lambda_1 + \lambda_3$ and $E(Y) = \lambda_2 + \lambda_3$.  
+
+## Using Bradley Terry as a benchmark model, which model performs the best?
+
+I fit the Bradley Terry Model and the Davidson Model using Maximum Likelihood Estimation (MLE), which was by far the easiest and most popular way of estimating these models. Unlike the pairwise comparison models, which can easily be formulated in the context of a univariate generalized linear model and fit with MLE, the bivariate poisson models were most easily fit using Bayesian methods.
+
+I tested these models on ten seasons, 2009-2010 to 2018-2019, of the English Premier League, which is the top-flight division in England. The Premier League has 20 teams, but each season the three worst teams in the league are relegate to the Championship, which is the second division in England, and three teams from the Championship are promoted. Each season of the Premier League has every team playing every other team once at home and once away, leading to a total of 380 games. The program I wrote to test these models runs 5-fold validation on the models for each season, recording the binary loss and the log loss for the Davidson Model and the bivariate poisson models.
+
+Binary loss represents how many games the model predicted incorrectly, which is a zero or one response. However, log loss is more nuanced because it rewards models for assigning higher probabilities to correct outcomes and punishes them for assigning very low probabilities to incorrect outcomes. To make the binary loss metric interesting to investigate, I made all four models predict the same number of draws by looking at the quantiles of the predicted draw probabilities or, in the case of Bradley-Terry, the interval in the middle of the predicted range of probabilities that would make a draw most likely. The quantiles were chosen by how many draws occurred in the training set, so all models had to predict a draw the same proportion of times. This is clearly artificial in some sense, so it should be emphasized the log loss is a much better metric and thus will be the primary metric of interest when comparing the three models that give draw probabilities.
+
+## Visualization and Descriptive Statistics
+
+To visually describe the data used in this project, I will focus on data from the 2018-2019 Premier League season. Shown below are histograms of goals scored by the home and a scatterplot of away goals versus home goals.
+
+```{r, echo = FALSE, out.width='50%'}
+epl_1819 <- read.csv(file="epl_1819.csv", header=TRUE, sep=",")
+ggplot(epl_1819, aes(FTHG)) +
+  geom_bar() + 
+  labs(title = "Histogram of Home Goals Scored in 2018-2019 Premier League",
+       x = "Home Goals Scored",
+       y = "Number of Games")
+
+ggplot(epl_1819, aes(x = FTHG, y = FTAG)) +
+  geom_point() + 
+  geom_jitter() + 
+  labs(title = "Scatterplot of Away Goals versus Home Goals in 2018-2019 Premier League",
+       x = "Home Goals Scored (jittered)",
+       y = "Away Goals Scored (jittered)")
+```
+
+```{r}
+mean(epl_1819$FTHG) # average goals scored by home team
+mean(epl_1819$FTAG) # average goals scored by away team
+var(epl_1819$FTHG) # variance of goals scored by home team
+var(epl_1819$FTAG) # variance of goals scored by away team
+cor(epl_1819$FTHG, epl_1819$FTAG) # correlation between the two goal counts
+```
+
+The histograms show that goal counts are poisson distributed, roughly satisfying the assumption that the mean of the distribution equals its variance if we ignore a little overdispersion. As expected, teams playing at home score more goals than their opponents on average. In addition, there is a weak, negative correlation between the two goal counts, which is likely explained by the difference in strength between the two teams rather than an intrinsic covariance shared by the two counts. Nevertheless, running several different bivariate poisson models and examining their performance on out-of-bag data will help us see which model makes the best predictions.
+
+### Davidson and Poisson (Model 3) Estimates for Premier League Clubs
+```{r, echo = FALSE}
+epl_1819_int_cov_results <- read.csv(file="epl_1819_club_results_int_cov.csv", header=TRUE, sep=",")
+epl_1819_club_results <- read.csv(file="epl_1819_club_results.csv", header=TRUE, sep=",")
+epl_1819_table <- read.csv(file="epl_1819_final_club_results.csv", header=TRUE, sep=",")
+
+epl_1819_club_results$int_cov_alpha <- epl_1819_int_cov_results$alpha
+epl_1819_club_results$int_cov_delta <- epl_1819_int_cov_results$delta
+epl_1819_club_results$int_cov_rho <- epl_1819_int_cov_results$rho
+
+bar_plot_data <- data.frame("Teams" = epl_1819_club_results$Team,
+                            "Davidson_Estimate" = epl_1819_club_results$davidson_estimates,
+                            "Poisson_Estimate" = epl_1819_club_results$int_cov_alpha)
+
+bar_plot_data.long<-melt(bar_plot_data)
+ggplot(bar_plot_data.long,aes(Teams,value,fill=variable)) +
+  coord_flip() + 
+  geom_bar(stat="identity",position="dodge") + 
+  scale_fill_discrete(name = "Strength Estimates")
+```
+
+Teams with positive estimates for their attacking abilities have large Davidson estimates. However, note that the Davidson estimates are not as accurate as we would like. For example, Arsenal has a disproportionately large Davidson estimate, higher than Manchester City and Liverpool. It is possible that the Davidson model's lack of success was due to poor numerical estimation of the coefficients, which was fit using the optim function in R.
+
+
+```{r, echo = FALSE}
+ggplot(epl_1819_club_results, aes(x = int_cov_alpha, y = int_cov_delta)) + 
+  geom_point() + 
+  geom_text_repel(aes(label=Team)) + 
+  geom_rect(aes(xmin = 0, xmax = 0.8, ymin = 0, ymax = 0.5),
+                   fill = "red", alpha = 0.03) + 
+  geom_rect(aes(xmin = -0.8, xmax = 0, ymin = 0, ymax = 0.5),
+                   fill = "pink", alpha = 0.03) + 
+  geom_rect(aes(xmin = -0.8, xmax = 0, ymin = -0.7, ymax = 0),
+                   fill = "blue", alpha = 0.03) + 
+  geom_rect(aes(xmin = 0, xmax = 0.8, ymin = -0.7, ymax = 0),
+                   fill = "green", alpha = 0.03) + 
+  labs(title = "Scatterplot of Teams by Attacking and Defensive Ability",
+       x = "Attacking Strength",
+       y = "Defensive Ability") + 
+  geom_label(label="Good Offense",
+             x=0.55,
+             y=0.3,label.padding = unit(0.55, "lines"),
+             label.size = 0.35,
+             color = "black",
+             fill="#69b3a2") + 
+  geom_label(label="Good Defense",
+             x=-0.55,
+             y=-0.5,label.padding = unit(0.55, "lines"),
+             label.size = 0.35,
+             color = "black",
+             fill="#69b3a2")
+```
+
+Red teams represent teams with good attacking strength but below average defensive ability whereas blue teams represent below average attacking ability but good defensive ability. Pink teams were poor all around, and teams in green were the best in the Premier League. Labels were jittered using the ggrepel pacakge, which is pretty neat.
+
+```{r, echo = FALSE}
+epl_1819_table %>%
+  select(-c("alpha", "delta", "rho", "team_code",
+            "HomeWins", "AwayWins", "HomeDraws", "AwayDraws", "awayGD",
+            "homeGD", "X"))
+```
+
+Above is the end of season standings for the 2018-2019 Premier League season. In subsequent parameter graphs the teams are labelled by the order in which they finished, so the best teams have large, positive attacking strengths and large, negative defending strengths.
+
+### Left: Attacking Strengths (Model 3) Right: Defending Strengths (Model 3)
+```{r echo=FALSE, out.width='50%'}
+knitr::include_graphics('./attacking_estimates1819.png')
+knitr::include_graphics('./defensive_estimates1819.png')
+```
+
+Many of the prediction intervals contain zero, but the best and worst teams attain values that are significantly different from zero. Manchester City and Liverpool were sensational last season.
+
+### Left: Change in Covariance (Model 2) Right: Change in Covariance (Model 3)
+```{r echo=FALSE, out.width='50%'}
+knitr::include_graphics('./team_cov_1819.png')
+knitr::include_graphics('./poisson_int_cov_rho.png')
+```
+
+The above graphs of the covariance random effects are critical points in this project. If we do not include a covariance term, then coefficients for the team-specific random effects on the covariance term are achieved above. A possible interpretation for these random effects is that a team with a high $\rho$ will have a large effect on the goal counts for both sides, whereas a team with a low $\rho$ will have a small effect on the goal counts for both sides.
+
+Stunningly, we see that, if you include an intercept in the covariance term, then you get estimates for the $\rho$ terms that are effectively zero. This suggests that model 2 was misspecified and that the fitted estimates for the $\rho$ terms are a consequence of overfitting. This will become evident in the prediction results in the inferences section.
+
+### Left: Posteriors for Goals Intercept, Home Advantage, and Covariance Intercept (Model 3) Right: Posteriors for Goals Intercept and Home Advantage (Model 2)
+```{r echo=FALSE, out.width='50%'}
+knitr::include_graphics('./poisson_int_cov_param_pairs.png')
+knitr::include_graphics('./two_param_plot_no_int.png')
+```
+
+The goals intercept for model 3 is .12, the home field advantage is .23, and the fitted value for the variance of the attacking strength effects is -9.94. In contrast, the goals intercept for model 2 is -1.24 and the home field advantage is .48. To interpret the fixed effects, we can calculate the expected goals for each model. For model 3, the expected goals for the home side is $e^{.12 + .23} + e^{-9.94} = 1.42$, and the expected goals for the away side is $e^{.12 + .23} + e^{-9.94} = 1.13$. For model 2, the expected goals for the home side is $e^{-1.24 + .48} + e^0 = 1.47$ and the expected goals for the away side is $e^{-1.24} + e^0 = 1.29$. To be clear, $e^0$ is the expected covariance term for model 2 and $e^{-9.94}$ is the expected covariance term for model 3. Note that these are pretty close to the average goals for the home and away sides observed in the 2018-2019 season, but they are not the exact same nor are they the same across the two models. In particular, model 2 expects more goals on average from the away side than model 3.
+
+An indication that something went wrong is that the posterior distribution for the covariance intercept does not look normally distributed at all despite being modelled with a normal prior. A look into the covariance random effects in the next couple of graphs will reveal the potential problem.
+
+Red dots in pair plots represent divergent transitions in the Monte Carlo sampling of the posterior distributions, indicating that it was difficult for the sampler to accurately explore this area of the distribution. This occurred in the pairs plots for model 3 but not those for model 2.
+
+### Left: Posteriors for Random Effects Variance Terms (Model 3) Right: Posteriors for Random Effects Variance Terms (Model 2)
+```{r echo=FALSE, out.width='50%'}
+knitr::include_graphics('./poisson_int_cov_variance.png')
+knitr::include_graphics('./variance_terms_no_int.png')
+```
+
+The above graphs show the posterior distributions for the variances of the random effects between the two models. The prior distributions for the variance terms were inverse gamma distributions with $\alpha = \beta = 1$, which explains why the the posterior for $\sigma_r$ has an inverse gamma shape in the left figure for model 3. However, in the right figure for model 2 it is clear that something went dreadfully wrong the with posterior distribution for the random effects on the covariance term. This is extremely puzzling because $\sigma_r$ has an suitably-looking posterior distribution in model 3 where all of the random effects are estimated to be approximately zero. In contrast, when you omit the intercept in the covariance term, allowing the random effects to vary, the posterior distribution for $\sigma_r$ becomes notably corrupted.
+
+These concerns will be discussed further in the conclusion, but it is clear from the graphical analysis of the variance terms that the MCMC algorithm failed to satisfiably estimate the model when you omit the intercept in the covariance term. On the other hand, including the team-specific random effects in addition to the fixed intercept gives a $\sigma_r$ term that is misleading because it doesn't include nearly enough mass around zero, reflecting that there is effectively no variance in the $\rho$ terms.
+
+To take a closer look at all of the variance terms, the values for $\sigma_a$, $\sigma_d$, $\sigma_r$ in model 2 are 0.89, 0.56, and 0.35, respectively. In contrast, in model 3 these values are 0.34, 0.32, 1.19. In Stan, the normal distribution takes the standard deviation as the argument rather than the variance, so these are all standard deviations. Model 2 therefore has a greater variability in the attacking strengths and the defending strengths than those of model 3. This is quite interesting because my assumption would be that the increased variance in the abilities would allow the model to effectively discriminate between two teams, but, as you will see in the inferences, model 3 actually outperforms model 2. With that said, you will find in the inferences section that model 2 does slightly better in predicting draws, which intuitively makes sense because model 2 will most likely have fewer false positives for teams legitimately being equal in skill due to the higher variance of the random effects.
+
+## Inferences
+
+First we will explore the metrics that were proposed to evaluate the different models. Shown below is a bar graph that illustrates the binary log loss of the models. Each Premier League season is 380 games, so running 5-fold validation involves training sets of 304 games and testing sets of 76 games. Consequently, the number of games predicted for each result (home win, away win, or tie) is out of 76 games. The numbers shown are the averages of the results from k-fold validation over the ten seasons.
+
+### Model Comparison Using Binary Loss
+```{r}
+sum(epl_1819$FTR == "D") # 71 draws during this season, with a rate of 18.68%
+sum(epl_1819$FTR == "H") # 181 home wins during this season, with a rate of 47.63%
+sum(epl_1819$FTR == "A") # 128 away wins during this season, with a rate of 33.68%
+```
+
+```{r, echo=FALSE, out.width='70%'}
+epl_backtest_results <- read.csv(file="epl_backtest_results.csv", header=TRUE, sep=",")
+epl_backtest_results_davidson <- read.csv(file="epl_backtest_results_davidson.csv", header=TRUE, sep=",")
+epl_backtest_results_int_cov <- read.csv(file="epl_backtest_results_int_cov.csv", header=TRUE, sep=",")
+
+draw_bt = sum(epl_backtest_results$avg_draws_predicted_BT)/10
+home_win_bt = sum(epl_backtest_results$avg_home_wins_predicted_BT)/10
+away_win_bt = sum(epl_backtest_results$avg_away_wins_predicted_BT)/10
+draw_david = sum(epl_backtest_results$avg_draws_predicted_davidson)/10
+home_win_david = sum(epl_backtest_results$avg_home_wins_predicted_davidson)/10
+away_win_david = sum(epl_backtest_results$avg_away_wins_predicted_davidson)/10
+draw_model_2 = sum(epl_backtest_results$avg_draws_predicted_poisson)/10
+home_win_model_2 = sum(epl_backtest_results$avg_home_wins_predicted_poisson)/10
+away_win_model_2 = sum(epl_backtest_results$avg_away_wins_predicted_poisson)/10
+draw_model_1 = sum(epl_backtest_results$avg_draws_predicted_poisson_no_cov)/10
+home_win_model_1 = sum(epl_backtest_results$avg_home_wins_predicted_poisson_no_cov)/10
+away_win_model_1 = sum(epl_backtest_results$avg_away_wins_predicted_poisson_no_cov)/10
+draw_model_3 = sum(epl_backtest_results_int_cov$avg_draws_predicted_poisson_int_cov)/10
+home_win_model_3 = sum(epl_backtest_results_int_cov$avg_home_wins_predicted_poisson_int_cov)/10
+away_win_model_3 = sum(epl_backtest_results_int_cov$avg_away_wins_predicted_poisson_int_cov)/10
+
+values_draw = c(draw_bt, draw_david, draw_model_1, draw_model_2, draw_model_3)
+
+values_home_win = c(home_win_bt, home_win_david, home_win_model_1, home_win_model_2, home_win_model_3)
+
+values_away_win = c(away_win_bt, away_win_david, away_win_model_1, away_win_model_2, away_win_model_3)
+
+names_draw = c("BT", "Davidson", "Model_1", "Model_2", "Model_3")
+names_home_win = c("BT", "Davidson", "Model_1", "Model_2", "Model_3")
+names_away_win = c("BT", "Davidson", "Model_1", "Model_2", "Model_3")
+
+final_results_draw <- data.frame("models" = names_draw, "values" = values_draw)
+final_results_home_win <- data.frame("models" = names_home_win, "values" = values_home_win)
+final_results_away_win <- data.frame("models" = names_away_win, "values" = values_away_win)
+
+ggplot(final_results_draw, aes(x = models, y = values)) +
+  coord_flip() + 
+  geom_bar(stat = "identity") + 
+  labs(title = "Model Comparison Using Binary Loss for Draws",
+       x = "Models",
+       y = "Average Draws Correctly Predicted Per 76 Games")
+
+final_results_draw
+```
+
+All three models are roughly equivalent in predicting draws. As calculated earlier in the paper, 18.68% of games were drawn, so we would expect 14.20 games to be drawn in a testing set of 76 games. Consequently, because I forced each of the models to predict the some proportion of games as draws, they succeeded in a little less than a third of their draw predictions.
+
+```{r, echo = FALSE, out.width='50%'}
+ggplot(final_results_home_win, aes(x = models, y = values)) +
+  coord_flip() + 
+  geom_bar(stat = "identity") + 
+  labs(title = "Model Comparison Using Binary Loss for Home Wins",
+       x = "Models",
+       y = "Average Home Wins Correctly Predicted Per 76 Games")
+
+ggplot(final_results_away_win, aes(x = models, y = values)) +
+  coord_flip() + 
+  geom_bar(stat = "identity") + 
+  labs(title = "Model Comparison Using Binary Loss for Away Wins",
+       x = "Models",
+       y = "Average Away Wins Correctly Predicted Per 76 Games")
+```
+
+### Binary Loss Home Wins Results
+```{r, echo = FALSE}
+final_results_home_win
+```
+
+### Binary Loss Away Wins Results
+```{r, echo = FALSE}
+final_results_away_win
+```
+
+The poisson model with the intercept term in the covariance performed the best in predicting home wins. It is worth noting that the pairwise comparison models did considerably worse than the poisson models in predicting home away. In addition, it is a coincidence that the poisson model without an intercept term and the poisson model with no covariance term at all have binary loss values of 23.68. I rechecked the averages over the ten seasons and they both genuinely are 23.68 despite having different values.
+
+Interestingly enough, although the pairwise comparison models did very poorly in predicting home wins, they decisively outperformed the poisson models in predicting home wins. However, among the poisson models, model 3 performed the best in predicting away wins. This suggests that a topic for future study would be to explore stacking pairwise comparison models with poisson models, taking advantage of their different predictive strengths in order to better predict the outcomes of soccer matches.
+
+```{r, echo = FALSE}
+bt_predictions = draw_bt + home_win_bt + away_win_bt
+davidson_predictions = draw_david + home_win_david + away_win_david
+model_2_predictions = draw_model_2 + home_win_model_2 + away_win_model_2
+model_1_predictions = draw_model_1 + home_win_model_1 + away_win_model_1
+model_3_predictions = draw_model_3 + home_win_model_3 + away_win_model_3
+final_results <- data.frame("bt_predictions" = bt_predictions,
+                            "davidson_predictions" = davidson_predictions,
+                            "model_2_predictions" = model_2_predictions,
+                            "model_1_predictions" = model_1_predictions,
+                            "model_3_predictions" = model_3_predictions) %>%
+  summarize(BT = bt_predictions, Davidson = davidson_predictions,
+            Model_1 = model_1_predictions,
+            Model_2 = model_2_predictions,
+            Model_3 = model_3_predictions)
+final_results
+```
+
+The above results show that model 3 performed the best with respect to the binary loss function. It also shows that the BT model outperformed the Davidson model. The only explanation that I have for this is that Davidson's structure of this model is suboptimal for predicting the outcomes of soccer matches and assigns probabilities to each of the outcomes in a way that is artificial and inaccurate. For example, it is quite possible that the form of the Davidson model, while algebraically convenient and aesthetic, is very inaccurate even with properly estimated parameters. This highlights the advantages of the bivariate poisson models; because the probabilities of the outcomes are calculated by sampling repeatedly from the bivariate distribution for the given teams, the probabilities are naturally a function of the goal-scoring process that generates the match outcomes.
+
+In addition, the log loss metric for the models is shown below. Log loss is calculated by $-\frac{1}{76}\sum_{i=1}^{3}\sum_{j=1}^{76}y_{ij}log(p_{ij})$, where $y_{ij} = 1$ if the jth game was the ith outcome and zero otherwise and $p_{ij}$ is the probability of the ith outcome in the jth game. Consequently, log losses that are closer to zero reflect a higher-performing model because it indicates that the model was assigning higher probabilities to the correct outcome. If you multiply by negative one and exponentiate the result then you get the geometric mean of the probabilities assigned to the correct outcome. However, we often keep this metric in its original form because it is closely related to maximum likelihood methods.
+
+### Model Comparison Using Log Loss
+```{r, echo = FALSE}
+ll_davidson = sum(epl_backtest_results_davidson$davidson_log_loss)/10
+ll_model_2 = sum(epl_backtest_results$poisson_log_loss)/10
+ll_model_1 = sum(epl_backtest_results$poisson_no_cov_log_loss)/10
+ll_model_3 = sum(epl_backtest_results_int_cov$poisson_int_cov_log_loss)/10
+final_results_ll <- data.frame("ll_davidson" = ll_davidson,
+                               "ll_model_1" = ll_model_1,
+                              "ll_model_2" = ll_model_2,
+                              "ll_model_3" = ll_model_3) %>%
+  summarize(Davidson = ll_davidson,
+            Model_1 = ll_model_1,
+            Model_2 = ll_model_2,
+            Model_3 = ll_model_3)
+
+final_results_ll
+```
+
+Judging from the results, it is clear that the bivariate poisson models significantly outperformed the Davidson model in both the binary loss and log loss metrics. There are several potential reasons for why the Davidson model performed worse than the bivariate poisson models. Firstly, the strength of the bivariate poisson model is that it simply incorporates more information into the model by accounting for the number of goals scored by each side. In addition, at a fundamental it reflects how soccer games are won: if goal counts are truly bivariate poisson distributed, then the probability of a draw changes depending on the expected values for the goals of each team due to the variance of the distribution equaling its mean.
+
+The Davidson model attempts to account for draws, but it lacks the details that explain why one team is ranked higher than another team. For example, a team with a moderately low attacking ability but with a large negative defensive ability will generate a different poisson distribution with a lower variance than if they had a less negative defensive ability and greater attacking ability. However, it is not entirely clear that this information could be captured in the Davidson model because there is only one parameter that accounts for draws. In contrast, the possibility of draws depending on the relative attacking and defensive abilities of the two teams is built into the very structure of the bivariate poisson distribution, giving it the edge in accurate modeling. Finally, as suggested earlier in the paper, it is also possible that the numerical estimation of the Davidson model through the optim function was simply not as good as the Bayesian methods used. Evidence for this can be seen in the side-by-side bar plot of the Davidson estimates with the Attacking strength estimates.
+
+Furthermore, the results strongly suggest that model 3 was the best model. In addition, judging from the visual analysis of the posterior distributions of the variance terms of the random effects and the prediction intervals of the random effects themselves, it seems as though fitting team-specific random effects to the covariance term did not improve the model and led to overfitting. This explains why models 1 and 3 both performed better than model 2, which most likely overfit to the noise in the data. However, this also shows that model 3 was not improved by adding the team-specific random effects because all of the random effects were estimated to be approximately zero. In fact, estimating those random effects probably made the model perform worse due to the MCMC complications that slowed down the estimation process and most likely caused instability in the parameter estimates. Evidence for this is in the graphical analysis of the pairs plots for model 3 that show divergent transitions in red.
+
+## Conclusion
+
+This paper demonstrated the predictive power of bivariate poisson models with a covariance structure in the world of soccer. Consequently, although pairwise comparison models have their utility in sports, sports such as soccer, water polo, and field hockey should consider taking advantage of the goal counts in order to predict matches. Furthermore, as noted in the inferences section, it is also very likely that the pairwise comparison models and the poisson models could be stacked to make an even better model that uses the predictions of both as features. This could possibly work due to the different strengths of the models because pairwise comparison models excelled in predicting away wins whereas poisson models excelled in predicting home wins. 
+
+Areas for future work would be exploring more complicated implementations of a covariance term. The biggest issue I had with my project is that it essentially assumes a positive covariance. I understand that modeling a negative covariance would be practically impossible because before kick-off you don't know which team is going to score an inordinate amount of goals, causing the other team to score fewer goals simply due to the goals scored by their opponent. In other words, even if you could discern the effects of the covariance term from the effects of the team abilities, it is not clear to me which way you would assign the negative effect of the covariance if you don't know which team will score more goals. It is not possible to assume that the better team should benefit from the covariance because you are fitting all of these parameters simultaneously. Regardless, this would be a fascinating topic of research.
+
+The second biggest issue with my design is not being able to fully comprehend why the final poisson model with the fixed intercept and team-specific effects in the covariance term did so well. For example, it is clearly overfitting to estimate the team-specific random effects since they were all estimated to be zero, so we can be somewhat certain that the model with just the intercept in the covariance term would perform just as well. However, at the beginning of my project I dismissed this possibility because, judging from the model below, it seems as though the two constants $\mu$ and $\gamma$ are redundant, and that any information in $\gamma$ would be subsumed into $\mu$.
+
+$(X_i,Y_i) \sim BP(\lambda_{1i},\lambda_{2i})$  
+$log(\lambda_{1i}) = \mu + home + att_{H_i} + def_{A_i} + \gamma$  
+$log(\lambda_{2i}) = \mu + att_{A_i} + def_{H_i} + \gamma$  
+The marginal distributions of X and Y are given by  
+$E(X) = \lambda_1$ and $E(Y) = \lambda_2$.  
+
+Thompson proposed a very similar model in his project except that he fit a random intercept $\gamma_i$ for each game. This seems blatantly over-parameterized, but evidently I shouldn't have dismissed the possibility of a single fixed intercept representing the covariance. However, algebraically it seems quite obvious that the two constants $\mu$ and $\gamma$ would provide the same information if you replaced their sum with another constant, so why did this model outperform the bivariate poisson model with no covariance term at all? In fact, it is particularly puzzling that the poisson model with the intercept in the covariance performed so well when there is graphical analysis suggesting that the model fit from the MCMC algorithm was not optimal. Specifically, in addition to the posterior distribution for the covariance intercept term not appearing normally distributed, $\sigma_r$ has a significant proportion of its density not clustered around zero despite all of its $\rho$ terms being estimated as zero.
+
+Admittedly, it is unsatisfying to leave these questions unanswered for the time being, but the accomplishments of this paper are: 1) definitively showing the advantage of bivariate poisson models over pairwise comparison models in predicting soccer matches, 2) exploring the implementations of covariance terms and the possible complications that can arise, particularly in a Bayesian framework, and 3) establishing the potential for stacking models for increased predictive power.
+
+All code is available at my github page, https://github.com/mikemiller442. This includes the script that ran the k-fold validation and all of the Stan files for the bivariate poisson models. Choices of prior distributions were intended to be non-informative and to accurately reflect the type of parameter being estimated, e.g. normal distributions for random effects and fixed effects and inverse-gamma distributions for variance terms of random effects.
+
+### Works Cited
+
+Jake Thompson, https://wjakethompson.github.io/soccer/index.html. I used this resource to learn how to fit bivariate poisson models in Stan.
+
+Haziq Jamil, https://haziqj.ml/files/haziq-msc-thesis.pdf. I used this resource to learn about the Davidson Model. In addition, I used the likelihood function given for the Davidson model to fit my own models.
+
+Dimitris Karlis and Ioannis Ntzoufras, "Bivariate Poisson and Diagonal Inflated Bivariate Poisson Regression Models in R", Journal of Statistical Software
+September 2005, Volume 14, Issue 10.
+
+Davidson, R. (1970). On Extending the Bradley-Terry Model to Accommodate Ties in Paired Comparison Experiments. Journal of the American Statistical Association, 65(329), 317-328. doi:10.2307/2283595. Original paper on the Davidson Model that also goes over the model introduced by Rao and Kupper.
+
+Turner et al., https://www.slideshare.net/htstatistics/turner-use-r2013talk. This resource was very interesting because it showed how the Davidson model can be improved by accounting for the dependence that the draw probability has on the relative abilities of the teams.
+
+
+
